@@ -26,7 +26,7 @@ if __name__ == "__main__":
     motion_file_name = dataset_path.split("/")[-1].split(".")[0]
     exp_name = args.exp_name
     dataset_full = joblib.load(dataset_path)
-    num_envs = len(dataset_full) if len(dataset_full)  < 512 else 512
+    num_envs = len(dataset_full) if len(dataset_full) < 1 else 1
     num_runs = args.num_runs
 
     # Creating dataset

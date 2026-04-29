@@ -11,7 +11,6 @@ from gym import spaces
 
 
 class CommonPlayer(players.PpoPlayerContinuous):
-
     def __init__(self, config):
         BasePlayer.__init__(self, config)
         self.network = config['network']

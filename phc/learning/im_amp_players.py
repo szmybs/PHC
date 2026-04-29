@@ -117,36 +117,54 @@ class IMAMPPlayerContinuous(amp_players.AMPPlayerContinuous):
                     import ipdb; ipdb.set_trace()
                     print('??')
 
+                '''
                 all_mpjpe = [all_mpjpe[: (i - 1), idx].mean() for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())] # -1 since we do not count the first frame. 
                 all_body_pos_pred = np.stack(self.pred_pos)
                 all_body_pos_pred = [all_body_pos_pred[: (i - 1), idx] for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())]
                 all_body_pos_gt = np.stack(self.gt_pos)
                 all_body_pos_gt = [all_body_pos_gt[: (i - 1), idx] for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())]
+                '''
+                all_mpjpe = [all_mpjpe[: (i), idx].mean() for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())] # -1 since we do not count the first frame. 
+                all_body_pos_pred = np.stack(self.pred_pos)
+                all_body_pos_pred = [all_body_pos_pred[: (i), idx] for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())]
+                all_body_pos_gt = np.stack(self.gt_pos)
+                all_body_pos_gt = [all_body_pos_gt[: (i), idx] for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())]
+
 
                 if COLLECT_Z:
                     all_zs = torch.stack(self.zs)
-                    all_zs = [all_zs[: (i - 1), idx] for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())]
+                    # all_zs = [all_zs[: (i - 1), idx] for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())]
+                    all_zs = [all_zs[: (i), idx] for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())]
                     self.zs_all += all_zs
 
 
                 if humanoid_env.collect_dataset:
                     all_obs_buf = np.stack(self.obs_buf) # Time, batch, obs
-                    all_obs_buf = [all_obs_buf[: (i - 1), idx] for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())]
+                    # all_obs_buf = [all_obs_buf[: (i - 1), idx] for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())]
+                    all_obs_buf = [all_obs_buf[: (i), idx] for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())]
                     self.obs_buf_all += all_obs_buf
 
                     all_clean_actions = np.stack(self.clean_actions) 
-                    all_clean_actions = [all_clean_actions[: (i - 1), idx] for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())]
+                    # all_clean_actions = [all_clean_actions[: (i - 1), idx] for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())]
+                    all_clean_actions = [all_clean_actions[: (i), idx] for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())]
                     self.clean_actions_all += all_clean_actions
                     
                     all_actions = np.stack(self.env_actions)
-                    all_actions = [all_actions[: (i - 1), idx] for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())]
+                    # all_actions = [all_actions[: (i - 1), idx] for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())]
+                    all_actions = [all_actions[: (i), idx] for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())]
                     self.actions_all += all_actions
 
                     all_reset_buf = np.stack(self.reset_buf)
-                    all_reset_buf = [all_reset_buf[: (i - 1), idx] for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())]
+                    # all_reset_buf = [all_reset_buf[: (i - 1), idx] for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())]
+                    all_reset_buf = [all_reset_buf[: (i), idx] for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())]
                     self.reset_buf_all += all_reset_buf
                     
-                    self.keys_all += humanoid_env._motion_lib.curr_motion_keys.tolist()
+                    print("curr_motion_keys: ", humanoid_env._motion_lib.curr_motion_keys)
+                    print("curr_motion_keys_type: ", type(humanoid_env._motion_lib.curr_motion_keys))
+                    if isinstance(humanoid_env._motion_lib.curr_motion_keys, list):
+                        self.keys_all += humanoid_env._motion_lib.curr_motion_keys.tolist()
+                    else:
+                        self.keys_all.append(np.array(humanoid_env._motion_lib.curr_motion_keys.tolist()))
 
                     self.motion_length_all += [obs.shape[0] for obs in all_obs_buf]
 
@@ -202,10 +220,13 @@ class IMAMPPlayerContinuous(amp_players.AMPPlayerContinuous):
                         dump_dir = osp.join(self.config['network_path'], "phc_act", motion_file, f"noise_{humanoid_env.add_action_noise}_{humanoid_env.action_noise_std}_{datetime.now().strftime('%Y-%m-%d-%H:%M:%S')}.pkl")
                         os.makedirs(osp.join(self.config['network_path'], "phc_act", motion_file), exist_ok=True)
                         print("Dumping to: ", dump_dir)
+                        print(np.array(self.keys_all))
                         joblib.dump({
                                 "obs": self.obs_buf_all, 
                                 "clean_action": self.clean_actions_all, 
                                 "env_action": self.actions_all,
+                                "pred_pos": self.pred_pos_all,
+                                "gt_pred_pos": self.gt_pos_all,
                                 "key_names": np.array(self.keys_all),
                                 "motion_lengths": np.array(self.motion_length_all),
                                 "reset": np.concatenate(self.reset_buf_all), 

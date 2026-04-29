@@ -1,11 +1,8 @@
 import torch
-
-
 from rl_games.algos_torch import torch_ext
 from phc.utils.running_mean_std import RunningMeanStd
 from rl_games.common.player import BasePlayer
 import learning.common_player as common_player
-
 from rl_games.common.tr_helpers import unsqueeze_obs
 
 def rescale_actions(low, high, action):
@@ -21,45 +18,7 @@ class AMPPlayerContinuous(common_player.CommonPlayer):
         self._disc_reward_scale = config['disc_reward_scale']
 
         super().__init__(config)
-
-        # self.env.task.update_value_func(self._eval_critic, self._eval_actor)
-        # import copy
-        # self.orcale_model = copy.deepcopy(self.model)
-        # checkpoint = torch_ext.load_checkpoint("output/dgx/smpl_im_master_singles_6_3/Humanoid_00031250.pth")
-        # self.orcale_model.load_state_dict(checkpoint['model'])
         return
-
-    # #### Oracle debug
-    # def get_action(self, obs, is_determenistic=False):
-    #     obs = obs['obs']
-    #     if self.has_batch_dimension == False:
-    #         obs = unsqueeze_obs(obs)
-    #     obs = self._preproc_obs(obs)
-    #     input_dict = {
-    #         'is_train': False,
-    #         'prev_actions': None,
-    #         'obs': obs,
-    #         'rnn_states': self.states
-    #     }
-    #     with torch.no_grad():
-    #         res_dict = self.orcale_model(input_dict)
-    #         print("orcale_model")
-
-    #     mu = res_dict['mus']
-    #     action = res_dict['actions']
-    #     self.states = res_dict['rnn_states']
-    #     if is_determenistic:
-    #         current_action = mu
-    #     else:
-    #         current_action = action
-    #     if self.has_batch_dimension == False:
-    #         current_action = torch.squeeze(current_action.detach())
-
-    #     if self.clip_actions:
-    #         return rescale_actions(self.actions_low, self.actions_high,
-    #                                torch.clamp(current_action, -1.0, 1.0))
-    #     else:
-    #         return current_action
 
     def restore(self, fn):
         super().restore(fn)
@@ -69,16 +28,14 @@ class AMPPlayerContinuous(common_player.CommonPlayer):
 
             if self._normalize_input:
                 self.running_mean_std.load_state_dict(checkpoint['running_mean_std'])
-
         return
 
     def _build_net(self, config):
         super()._build_net(config)
-
+        
         if self._normalize_amp_input:
             self._amp_input_mean_std = RunningMeanStd(config['amp_input_shape']).to(self.device)
             self._amp_input_mean_std.eval()
-
         return
 
     def _eval_critic(self, input):
@@ -108,12 +65,10 @@ class AMPPlayerContinuous(common_player.CommonPlayer):
                 
         else:
             config['amp_input_shape'] = self.env_info['amp_observation_space']
-            
             # if self.env.task.has_task:
             #     config['task_obs_size_detail'] = self.vec_env.env.task.get_task_obs_size_detail()
             #     config['self_obs_size'] = self.vec_env.env.task.get_self_obs_size()
             #     config['task_obs_size'] = self.vec_env.env.task.get_task_obs_size()
-
         return config
 
     def _amp_debug(self, info):

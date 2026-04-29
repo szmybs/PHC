@@ -116,7 +116,6 @@ class Humanoid(BaseTask):
         self.cfg["device_id"] = device_id
         self.cfg["headless"] = headless
 
-
         super().__init__(cfg=self.cfg)
 
         self.dt = self.control_freq_inv * sim_params.dt
@@ -127,7 +126,6 @@ class Humanoid(BaseTask):
         if self.humanoid_type in ['h1', 'g1', ]:
             self.gravity_vec = to_torch(get_axis_params(-1., self.up_axis_idx), device=self.device).repeat((self.num_envs, 1))
             self.base_link_id = self._build_key_body_ids_tensor([self.cfg.robot.base_link]).squeeze()
-
         return
 
     def _load_proj_asset(self):
@@ -766,10 +764,9 @@ class Humanoid(BaseTask):
             self._amass_gender_betas = np.array(gender_betas_data)
             
     def _create_envs(self, num_envs, spacing, num_per_row):
-        lower = gymapi.Vec3(-spacing, -spacing, 0.0)
+        lower = gymapi.Vec3(-spacing, -spacing, 0.0)    #### spacing = 2.0
         upper = gymapi.Vec3(spacing, spacing, spacing)
-
-        
+                
         asset_root = self.cfg.robot.asset["assetRoot"]
         asset_file = self.cfg.robot.asset["assetFileName"]
         self.humanoid_masses = []
@@ -811,8 +808,7 @@ class Humanoid(BaseTask):
                 print("!!!!!!! SMPL files not found, loading pre-computed humanoid assets, only for demo purposes !!!!!!!")
                 asset_root = "./"
                 robot = None
-                
-
+            
             torch.set_num_threads(1)
             mp.set_sharing_strategy('file_descriptor')
             
@@ -821,8 +817,7 @@ class Humanoid(BaseTask):
             asset_options.max_angular_velocity = 100.0
             asset_options.default_dof_drive_mode = gymapi.DOF_MODE_NONE
 
-            if self.has_shape_variation:
-                
+            if self.has_shape_variation:    # False
                 queue = mp.Queue()
                 num_jobs = min(mp.cpu_count(), 64)
                 if num_jobs <= 8 or self.cfg.disable_multiprocessing:
@@ -876,7 +871,6 @@ class Humanoid(BaseTask):
                 if self.self_obs_v == 3:
                     self.create_humanoid_force_sensors(humanoid_asset, self.force_sensor_joints)
                 
-                
                 self.humanoid_shapes = torch.tensor(np.array([gender_beta] * num_envs)).float().to(self.device)
                 self.humanoid_assets = [humanoid_asset] * num_envs
                 self.skeleton_trees = [sk_tree] * num_envs
@@ -913,9 +907,7 @@ class Humanoid(BaseTask):
             self.humanoid_shapes = torch.tensor(np.zeros((num_envs, 10))).float().to(self.device)
             self.humanoid_assets = [humanoid_asset] * num_envs
             self.skeleton_trees = [sk_tree] * num_envs
-            
         else:
-
             asset_path = os.path.join(asset_root, asset_file)
             asset_root = os.path.dirname(asset_path)
             asset_file = os.path.basename(asset_path)
@@ -964,7 +956,6 @@ class Humanoid(BaseTask):
         # self.gym.set_actor_dof_properties(self.envs[0], self.humanoid_handles[0], dof_prop)
 
         for j in range(self.num_dof):
-            
             if dof_prop['lower'][j] > dof_prop['upper'][j]:
                 self.dof_limits_lower.append(dof_prop['upper'][j])
                 self.dof_limits_upper.append(dof_prop['lower'][j])
@@ -1077,7 +1068,6 @@ class Humanoid(BaseTask):
             self.gym.set_asset_rigid_shape_properties(humanoid_asset, rigid_shape_props)
         ######################## DR ########################
         
-
         humanoid_handle = self.gym.create_actor(env_ptr, humanoid_asset, start_pose, "humanoid", col_group, col_filter, 0)
         self.gym.enable_actor_dof_force_sensors(env_ptr, humanoid_handle)
         
@@ -1088,7 +1078,6 @@ class Humanoid(BaseTask):
             self.gym.set_actor_rigid_body_properties(env_ptr, humanoid_handle, body_props, recomputeInertia=True)
             body_props_new = self.gym.get_actor_rigid_body_properties(env_ptr, humanoid_handle)
         ######################## DR ########################
-        
         
         mass_ind = [prop.mass for prop in self.gym.get_actor_rigid_body_properties(env_ptr, humanoid_handle)]
         humanoid_mass = np.sum(mass_ind)
@@ -1107,7 +1096,6 @@ class Humanoid(BaseTask):
 
         pd_scale = 1
         dof_prop = self.gym.get_asset_dof_properties(humanoid_asset)
-        
         
         if self.humanoid_type in ['h1']:
             if self.cfg.env.get("pd_v", 1) == 1:
@@ -1180,7 +1168,6 @@ class Humanoid(BaseTask):
             self.p_gains, self.d_gains = to_torch(self.p_gains), to_torch(self.d_gains)
             self.default_dof_pos = torch.zeros(1, self.num_dof).to(self.device)
         
-        
         dof_prop = self.gym.get_asset_dof_properties(humanoid_asset)
         if self.control_mode in ["isaac_pd"]:
             dof_prop["driveMode"] = gymapi.DOF_MODE_POS
@@ -1199,9 +1186,6 @@ class Humanoid(BaseTask):
             
         self.gym.set_actor_dof_properties(env_ptr, humanoid_handle, dof_prop)
         
-        
-        
-
         if self.humanoid_type in ['h1', 'g1', "smpl", "smplh", "smplx"] and self._has_self_collision:
             # compliance_vals = [0.1] * 24
             # thickness_vals = [1.0] * 24
@@ -1322,10 +1306,8 @@ class Humanoid(BaseTask):
             for j in range(self.num_bodies):
                 color_vec = gymapi.Vec3(*geom_colors[j])
                 self.gym.set_rigid_body_color(env_ptr, humanoid_handle, j, gymapi.MESH_VISUAL, color_vec)
-
-        
+    
         self.humanoid_handles.append(humanoid_handle)
-
         return
 
     def _build_pd_action_offset_scale(self):
@@ -1349,7 +1331,6 @@ class Humanoid(BaseTask):
 
                     lim_low[dof_offset:(dof_offset + dof_size)] = -curr_scale
                     lim_high[dof_offset:(dof_offset + dof_size)] = curr_scale
-
                     #lim_low[dof_offset:(dof_offset + dof_size)] = -np.pi
                     #lim_high[dof_offset:(dof_offset + dof_size)] = np.pi
 
@@ -1394,7 +1375,6 @@ class Humanoid(BaseTask):
             self._pd_action_scale[self._R_knee_dof_idx] = 5
             
             if self._has_smpl_pd_offset:
-                
                 if self._has_upright_start:
                     self._pd_action_offset[self._dof_names.index("L_Shoulder") * 3] = -np.pi / 2
                     self._pd_action_offset[self._dof_names.index("R_Shoulder") * 3] = np.pi / 2
@@ -1405,7 +1385,6 @@ class Humanoid(BaseTask):
                     self._pd_action_offset[self._dof_names.index("R_Shoulder") * 3 + 2] = np.pi / 2
         elif self.humanoid_type in ['h1', 'g1', ]:
             self._pd_action_offset[:] = 0
-
         return
 
     def _compute_reward(self, actions):

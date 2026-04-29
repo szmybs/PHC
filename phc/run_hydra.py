@@ -110,11 +110,11 @@ def parse_sim_params(cfg):
     
     return sim_params
 
+
 def create_rlgpu_env(**kwargs):
     use_horovod = cfg_train['params']['config'].get('multi_gpu', False)
     if use_horovod:
         import horovod.torch as hvd
-
         rank = hvd.rank()
         print("Horovod rank: ", rank)
 
@@ -123,7 +123,6 @@ def create_rlgpu_env(**kwargs):
         args.device = 'cuda'
         args.device_id = rank
         args.rl_device = 'cuda:' + str(rank)
-
         cfg['rank'] = rank
         cfg['rl_device'] = 'cuda:' + str(rank)
     
@@ -144,13 +143,12 @@ def create_rlgpu_env(**kwargs):
     print(env.num_states)
 
     frames = kwargs.pop('frames', 1)
-    if frames > 1:
-        env = wrappers.FrameStack(env, frames, False)
+    # if frames > 1:
+    #     env = wrappers.FrameStack(env, frames, False)
     return env
 
 
 class RLGPUAlgoObserver(AlgoObserver):
-
     def __init__(self, use_successes=True):
         self.use_successes = use_successes
         return
@@ -185,7 +183,6 @@ class RLGPUAlgoObserver(AlgoObserver):
 
 
 class RLGPUEnv(vecenv.IVecEnv):
-
     def __init__(self, config_name, num_actors, **kwargs):
         self.env = env_configurations.configurations[config_name]['env_creator'](**kwargs)
         self.use_global_obs = (self.env.num_states > 0)
@@ -258,7 +255,6 @@ def build_alg_runner(algo_observer):
     
     runner.algo_factory.register_builder('im_amp', lambda **kwargs: im_amp.IMAmpAgent(**kwargs))
     runner.player_factory.register_builder('im_amp', lambda **kwargs: im_amp_players.IMAMPPlayerContinuous(**kwargs))
-    
     return runner
 
 @hydra.main(
@@ -296,16 +292,16 @@ def main(cfg_hydra: DictConfig) -> None:
     
     cfg.train = not cfg.test
     project_name = cfg.get("project_name", "egoquest")
-    if (not cfg.no_log) and (not cfg.test) and (not cfg.debug):
-        wandb.init(
-            project=project_name,
-            resume=not cfg.resume_str is None,
-            id=cfg.resume_str,
-            notes=cfg.get("notes", "no notes"),
-        )
-        wandb.config.update(cfg, allow_val_change=True)
-        wandb.run.name = cfg.exp_name
-        wandb.run.save()
+    # if (not cfg.no_log) and (not cfg.test) and (not cfg.debug):
+    #     wandb.init(
+    #         project=project_name,
+    #         resume=not cfg.resume_str is None,
+    #         id=cfg.resume_str,
+    #         notes=cfg.get("notes", "no notes"),
+    #     )
+    #     wandb.config.update(cfg, allow_val_change=True)
+    #     wandb.run.name = cfg.exp_name
+    #     wandb.run.save()
     
     set_seed(cfg.get("seed", -1), cfg.get("torch_deterministic", False))
 
@@ -327,7 +323,6 @@ def main(cfg_hydra: DictConfig) -> None:
             print(path)
             raise Exception("no file to resume!!!!")
 
-    
     os.makedirs(cfg.output_path, exist_ok=True)
     
     algo_observer = RLGPUAlgoObserver()
@@ -335,7 +330,6 @@ def main(cfg_hydra: DictConfig) -> None:
     runner.load(cfg_train)
     runner.reset()
     runner.run(cfg)
-
     return
 
 

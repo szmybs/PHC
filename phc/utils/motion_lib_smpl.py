@@ -93,8 +93,6 @@ class MotionLibSMPL(MotionLibBase):
                 
                 diff_fix = ((vertices_curr - offset[:, None])[:frame_check, ..., -1].min(dim=-1).values - height_tolorance).min()  # Only acount the first 30 frames, which usually is a calibration phase.
             
-            
-            
             trans[..., -1] -= diff_fix
             return trans, diff_fix
 

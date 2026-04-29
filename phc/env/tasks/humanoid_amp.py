@@ -70,7 +70,6 @@ HACK_OUTPUT_MOTION_ALL = False
 
 
 class HumanoidAMP(Humanoid):
-
     class StateInit(Enum):
         Default = 0
         Start = 1
@@ -146,7 +145,6 @@ class HumanoidAMP(Humanoid):
         if env_ids is None:
             env_ids = torch.arange(self.num_envs).to(self.device)
         obs = self._compute_humanoid_obs(env_ids)
-
                 
         if self.obs_v == 2:
             # Double sub will return a copy.
@@ -194,7 +192,6 @@ class HumanoidAMP(Humanoid):
     def post_physics_step(self):
         super().post_physics_step()
 
-       
         if (HACK_MOTION_SYNC):
             self._hack_motion_sync()
 
@@ -214,7 +211,6 @@ class HumanoidAMP(Humanoid):
     
     def fetch_amp_obs_demo(self, num_samples):
         # Creates the reference motion amp obs. For discrinminiator
-
         if (self._amp_obs_demo_buf is None):
             self._build_amp_obs_demo_buf(num_samples)
         else:

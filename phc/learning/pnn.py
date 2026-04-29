@@ -1,5 +1,3 @@
-
-
 import torch
 import torch.nn as nn
 from phc.learning.network_builder import NetworkBuilder
@@ -9,7 +7,6 @@ from tqdm import tqdm
 
 
 class PNN(NetworkBuilder.BaseNetwork):
-
     def __init__(self, mlp_args, output_size=69, numCols=4, has_lateral=True):
         super(PNN, self).__init__()
         self.numCols = numCols
@@ -23,9 +20,7 @@ class PNN(NetworkBuilder.BaseNetwork):
             self.actors.append(mlp)
 
         if self.has_lateral:
-
             self.u = nn.ModuleList()
-
             for i in range(numCols - 1):
                 self.u.append(nn.ModuleList())
                 for j in range(i + 1):
@@ -35,7 +30,7 @@ class PNN(NetworkBuilder.BaseNetwork):
                         u.append(dense_func(in_size, unit, bias=False))
                         in_size = unit
                     u.append(dense_func(units[-1], output_size, bias=False))
-                    #                     torch.nn.init.zeros_(u[-1].weight)
+                    # torch.nn.init.zeros_(u[-1].weight)
                     self.u[i].append(u)
 
     def freeze_pnn(self, idx):
@@ -76,8 +71,6 @@ class PNN(NetworkBuilder.BaseNetwork):
             elif norm_func_name == 'batch_norm':
                 layers.append(torch.nn.BatchNorm1d(unit))
             in_size = unit
-            
-
         layers.append(nn.Linear(units[-1], actions_num))
         return nn.Sequential(*layers)
 
@@ -103,9 +96,7 @@ class PNN(NetworkBuilder.BaseNetwork):
 
                     # acc_acts_2 = [self.u[curr_idx - 1][col_idx][1](activation_cache[1][col_idx]) for col_idx in range(len(activation_cache[1]))]
                     # actions = curr_actor[4](activation_2) + sum(acc_acts_2)
-
                     actions = curr_actor[4](activation_2)  # disable action space transfer.
-
                     #                     acc_acts_1 = []
                     #                     for col_idx in range(len(activation_cache[0])):
                     #                         acc_acts_1.append(self.u[curr_idx - 1][col_idx][0](activation_cache[0][col_idx]))
@@ -116,11 +107,9 @@ class PNN(NetworkBuilder.BaseNetwork):
                     #                     for col_idx in range(len(activation_cache[1])):
                     #                         acc_acts_2.append(self.u[curr_idx - 1][col_idx][1](activation_cache[1][col_idx]))
                     #                     actions = curr_actor[4](activation_2) + sum(acc_acts_2)
-
                     activation_cache[0].append(activation_1)
                     activation_cache[1].append(activation_2)
                     activation_cache[2].append(actions)
-
                 return actions, activation_cache[2]
         else:
             if idx != -1:

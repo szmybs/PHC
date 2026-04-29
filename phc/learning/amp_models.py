@@ -17,13 +17,11 @@ class ModelAMPContinuous(ModelA2CContinuousLogStd):
     class Network(ModelA2CContinuousLogStd.Network):
         def __init__(self, a2c_network):
             super().__init__(a2c_network)
-
             return
 
         def forward(self, input_dict):
             is_train = input_dict.get('is_train', True)
             amp_steps = input_dict.get("amp_steps", 2)
-            
             
             result = super().forward(input_dict)
             
@@ -48,7 +46,6 @@ class ModelAMPContinuous(ModelA2CContinuousLogStd):
                 #     mus = mus.reshape(-1, 2048)
                 #     result['disc_direct_logit'] = self.a2c_network.eval_disc(mus)
                 
-                
                 # amp_obs.requires_grad_(True)
                 # disc_agent_logit = self.a2c_network.eval_disc(amp_obs)
                 # import ipdb; ipdb.set_trace()
@@ -56,7 +53,6 @@ class ModelAMPContinuous(ModelA2CContinuousLogStd):
                 # torch.autograd.grad(disc_agent_replay_logit, amp_obs_replay, grad_outputs=torch.ones_like(disc_agent_replay_logit), create_graph=False, retain_graph=True, only_inputs=True)
                 # torch.autograd.grad(disc_demo_logit, amp_demo_obs, grad_outputs=torch.ones_like(disc_demo_logit), create_graph=False, retain_graph=True, only_inputs=True)
                 # (1 / (1 + torch.exp(-disc_demo_logit)))[:50]
-
             return result
 
         def dropout_amp_obs(self, amp_obs, dropout_mask):

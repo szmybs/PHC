@@ -68,7 +68,7 @@ key_bodies: ["R_Ankle", "L_Ankle", "R_Wrist",  "L_Wrist"]
 contact_bodies: ["R_Ankle", "L_Ankle", "R_Toe", "L_Toe"]
 reset_bodies: ['Pelvis', 'L_Hip', 'L_Knee', 'R_Hip', 'R_Knee', 'Torso', 'Spine', 'Chest', 'Neck', 'Head', 'L_Thorax', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'L_Hand', 'R_Thorax', 'R_Shoulder', 'R_Elbow', 'R_Wrist', 'R_Hand']
 terminationHeight: 0.15
-enableEarlyTermination: True
+enableEarlyTermination: False
 terminationDistance: 0.25
 
 ### Fut config
