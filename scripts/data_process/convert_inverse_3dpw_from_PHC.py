@@ -79,8 +79,8 @@ def inverse_conversion(val, key, args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--phc_stat_name", type=str, default="data/3dpw/3dpw_test_upright_whole_sequence_gender_ground.pkl")
-    parser.add_argument("--phc_act_stat_name", type=str, default="sample_data/phc_act/3dpw_test_upright_whole_sequence_gender_ground/noise_False_0.05.pkl")
-    # parser.add_argument("--phc_act_stat_name", type=str, default="sample_data/phc_act/phc_act_3dpw_test_upright_whole_sequence_gender_ground.pkl")
+    # parser.add_argument("--phc_act_stat_name", type=str, default="sample_data/phc_act/3dpw_test_upright_whole_sequence_gender_ground/noise_False_0.05.pkl")
+    parser.add_argument("--phc_act_stat_name", type=str, default="output/HumanoidIm/phc_comp_3/phc_act/phc_act_3dpw_test_upright_whole_sequence_gender_ground.pkl")
     parser.add_argument("--gender_flag", action="store_true", default=True)
     parser.add_argument("--upright_start", action="store_true", default=True)
     parser.add_argument("--on_the_ground", action="store_true", default=True)

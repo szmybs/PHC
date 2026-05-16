@@ -87,7 +87,7 @@ def process_3dpw(args):
             if N < 10: continue
             
             # 相机坐标变换到世界坐标系(hip节点坐标)     ### 这里或者是由世界坐标系转到相机坐标系？？？
-            root_trans = np.einsum('nij,nj->ni', R_cam, root_trans) + t_cam
+            # root_trans = np.einsum('nij,nj->ni', R_cam, root_trans) + t_cam
             root_trans_amass = R_3dpw_2_amass.apply(root_trans)     # 坐标系转换 (3DPW -> AMASS)
             
             # 转换根旋转 (Global Orientation)
@@ -96,8 +96,10 @@ def process_3dpw(args):
             #   R_root_world = R_cam @ R_root_cam
             #   R_root_amass = R_3dpw_2_amass @ R_root_world
             root_rot_cam = sRot.from_rotvec(pose_aa_full[:, :3])
-            root_rot_world = sRot.from_matrix(R_cam[:N]) * root_rot_cam
-            root_rot_amass = R_3dpw_2_amass * root_rot_world
+            # root_rot_world = sRot.from_matrix(R_cam[:N]) * root_rot_cam   ### 到PHC中不对，倒立了
+            # root_rot_amass = R_3dpw_2_amass * root_rot_world
+            root_rot_amass = R_3dpw_2_amass * root_rot_cam
+
             
             pose_aa_amass = pose_aa_full.copy()
             pose_aa_amass[:, :3] = root_rot_amass.as_rotvec()
