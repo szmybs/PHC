@@ -18,14 +18,15 @@ from smpl_sim.smpllib.smpl_joint_names import SMPL_MUJOCO_NAMES, SMPL_BONE_ORDER
 from smpl_sim.smpllib.smpl_local_robot import SMPL_Robot as LocalRobot
 
 
-def inverse_conversion(val, args):
+def inverse_conversion(val, key, args):
     """
     逆向转换函数
     :param val: phc_stat_full 中的单个字典元素
     :param args: 参数
     :return: 恢复到原始 3DPW 相机坐标系下的 3D 关节坐标 (N, 24, 3)
     """
-    joints_inv = val["pos_state"].copy() # (N, 24, 3)
+    joints_inv = val[key].copy() # (N, 24, 3)
+    # joints_inv = val["pos_state"].copy() # (N, 24, 3)
     N = joints_inv.shape[0]
     
     # 提取保存好的平移状态
@@ -78,29 +79,43 @@ def inverse_conversion(val, args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--phc_stat_name", type=str, default="data/3dpw/3dpw_test_upright_whole_sequence_gender_ground.pkl")
-    # parser.add_argument("--phc_act_stat_name", type=str, default="sample_data/phc_act/3dpw_test_upright_whole_sequence_gender_ground/noise_False_0.05.pkl")
-    parser.add_argument("--phc_act_stat_name", type=str, default="sample_data/phc_act/phc_act_3dpw_test_upright_whole_sequence_gender_ground.pkl")
+    parser.add_argument("--phc_act_stat_name", type=str, default="sample_data/phc_act/3dpw_test_upright_whole_sequence_gender_ground/noise_False_0.05.pkl")
+    # parser.add_argument("--phc_act_stat_name", type=str, default="sample_data/phc_act/phc_act_3dpw_test_upright_whole_sequence_gender_ground.pkl")
     parser.add_argument("--gender_flag", action="store_true", default=True)
     parser.add_argument("--upright_start", action="store_true", default=True)
     parser.add_argument("--on_the_ground", action="store_true", default=True)
     args = parser.parse_args()
     
     phc_act_stat_data = joblib.load(args.phc_act_stat_name)
-    phc_act_pos, phc_act_key = phc_act_stat_data['pred_pos'], phc_act_stat_data['key_names']
+    phc_act_pos, phc_gt_act_pos, phc_act_key = phc_act_stat_data['pred_pos'], phc_act_stat_data['gt_pred_pos'], phc_act_stat_data['key_names']
     phc_act_stat = dict(zip(phc_act_key, phc_act_pos))
+    phc_gt_act_stat = dict(zip(phc_act_key, phc_gt_act_pos))
     
     phc_stat = joblib.load(args.phc_stat_name)     
     phc_stat_full = phc_stat.copy()
     for key, value in phc_act_stat.items():
         if key in phc_stat_full:
             phc_stat_full[key].update({"pos_state": value})
+            phc_stat_full[key].update({"gt_pos_state": phc_gt_act_stat[key]})
         else:
             warnings.warn("当前值{}不存在!".format(key), RuntimeWarning)
             
     # 执行逆运算并保存/处理结果
-    restored_motions = {}
+    restored_motions, restored_gt_motions = {}, {}
     for key, val in phc_stat_full.items():        
         if "pos_state" in val:
-            restored_motions[key] = inverse_conversion(val, args)   # 传入整个 val 字典，以便在函数内访问所有原始 offset 和相机数据
+            restored_motions[key] = inverse_conversion(val, key="pos_state", args=args)   # 传入整个 val 字典，以便在函数内访问所有原始 offset 和相机数据
+        if "gt_pos_state" in val:
+            restored_gt_motions[key] = inverse_conversion(val, key="gt_pos_state", args=args)
             
     print("坐标逆转换完成！")
+    
+    data = {
+        'rl_pos': restored_motions,
+        'rl_gt_pos': restored_gt_motions
+    }
+    save_dir = os.path.join(os.getcwd(), 'data', '3dpw', 'data_offline_multi3dpw.pkl')
+    joblib.dump(data, save_dir)
+    
+    temp = joblib.load(save_dir)
+    print()

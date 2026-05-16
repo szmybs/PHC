@@ -47,7 +47,7 @@ from phc.env.tasks.humanoid import Humanoid, dof_to_obs, remove_base_rot, dof_to
 from phc.env.util import gym_util
 from phc.utils.motion_lib_real import MotionLibReal
 from phc.utils.motion_lib_smpl import MotionLibSMPL 
-from phc.utils.motion_lib_base import FixHeightMode
+from phc.utils.motion_lib_base import get_fix_height_mode_from_cfg
 from easydict import EasyDict
 
 from isaacgym.torch_utils import *
@@ -326,11 +326,12 @@ class HumanoidAMP(Humanoid):
 
     def _load_motion(self, motion_train_file, motion_test_file=[]):
         assert (self._dof_offsets[-1] == self.num_dof)
+        fix_height_mode = get_fix_height_mode_from_cfg(self.cfg)
         if self.humanoid_type in ["smpl", "smplh", "smplx"]:
             motion_lib_cfg = EasyDict({
                 "motion_file": motion_file,
                 "device": torch.device("cpu"),
-                "fix_height": FixHeightMode.full_fix,
+                "fix_height": fix_height_mode,
                 "min_length": -1,
                 "max_length": -1,
                 "im_eval": flags.im_eval,
@@ -347,7 +348,7 @@ class HumanoidAMP(Humanoid):
             motion_lib_cfg = EasyDict({
                 "motion_file": motion_train_file,
                 "device": torch.device("cpu"),
-                "fix_height": FixHeightMode.full_fix,
+                "fix_height": fix_height_mode,
                 "min_length": self._min_motion_len,
                 "max_length": self.max_len,
                 "im_eval": flags.im_eval,

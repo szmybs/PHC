@@ -18,6 +18,9 @@ if __name__ == "__main__":
     parser.add_argument("--exp_name", type=str, default="phc_comp_3")
     parser.add_argument("--num_runs", type=int, default=10)
     parser.add_argument("--action_noise_std", type=int, default=0.05)
+    parser.add_argument("--motion_fix_height", type=str, default="full_fix",
+                        choices=["full_fix", "ankle_fix", "no_fix"],
+                        help="Controls PHC MotionLib height/ground correction when loading motions.")
     args = parser.parse_args()
 
     add_action_noise = True
@@ -40,7 +43,7 @@ if __name__ == "__main__":
         env.zero_out_far=False robot.real_weight_porpotion_boxes=False env.num_prim=3 \
             env.motion_file={dataset_path} env.models=['output/HumanoidIm/phc_3/Humanoid.pth'] \
                 env.num_envs={num_envs} headless=True epoch=-1 test=True im_eval=True \
-                collect_dataset=True  env.add_action_noise={add_action_noise}   env.action_noise_std={action_noise_std}"
+                collect_dataset=True env.motion_fix_height={args.motion_fix_height} env.add_action_noise={add_action_noise}   env.action_noise_std={action_noise_std}"
         action_noise_std += 0.01
         print(cmd)
         os.system(cmd)

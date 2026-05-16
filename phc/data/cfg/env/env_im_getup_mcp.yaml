@@ -4,6 +4,10 @@ project_name: "PHC"
 notes:  "Progressive MCP without softmax, zero out far"
 
 motion_file: ""
+# Controls PHC MotionLib height/ground correction when loading motions.
+# Options: full_fix (default), ankle_fix, no_fix.
+motion_fix_height: "full_fix"
+ground_correction: True
 num_envs: 1024
 env_spacing: 2
 episode_length: 300

@@ -26,10 +26,10 @@ def process_3dpw(args):
     robot_cfg = {
         "mesh": False, 
         "rel_joint_lm": True, 
-        "upright_start": upright_start,
+        "upright_start": upright_start, 
         "remove_toe": False, 
         "real_weight": True, 
-        "replace_feet": True,
+        "replace_feet": True, 
         "big_ankle": True, 
         "model": "smpl", 
         "body_params": {},
@@ -86,13 +86,18 @@ def process_3dpw(args):
             N = pose_aa_full.shape[0]
             if N < 10: continue
             
-            # 相机坐标变换到世界坐标系(hip节点坐标) 
+            # 相机坐标变换到世界坐标系(hip节点坐标)     ### 这里或者是由世界坐标系转到相机坐标系？？？
             root_trans = np.einsum('nij,nj->ni', R_cam, root_trans) + t_cam
             root_trans_amass = R_3dpw_2_amass.apply(root_trans)     # 坐标系转换 (3DPW -> AMASS)
             
             # 转换根旋转 (Global Orientation)
-            root_rot_obj = sRot.from_rotvec(pose_aa_full[:, :3])
-            root_rot_amass = R_3dpw_2_amass * root_rot_obj
+            # 3DPW 的 root orientation 和 root translation 一样先从相机坐标系
+            # 变换到世界坐标系，再从 3DPW 世界坐标系变换到 AMASS/PHC 坐标系：
+            #   R_root_world = R_cam @ R_root_cam
+            #   R_root_amass = R_3dpw_2_amass @ R_root_world
+            root_rot_cam = sRot.from_rotvec(pose_aa_full[:, :3])
+            root_rot_world = sRot.from_matrix(R_cam[:N]) * root_rot_cam
+            root_rot_amass = R_3dpw_2_amass * root_rot_world
             
             pose_aa_amass = pose_aa_full.copy()
             pose_aa_amass[:, :3] = root_rot_amass.as_rotvec()

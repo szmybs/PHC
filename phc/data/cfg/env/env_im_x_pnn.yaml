@@ -3,6 +3,10 @@ task: HumanoidIm
 project_name: "PHC_X"
 notes:  "obs_v6 PHC, huge model. Auto pmcp soft. Box body. real_weight_porpotion_boxes set to True. This makes the humanoid a little heavier."
 motion_file: ""
+# Controls PHC MotionLib height/ground correction when loading motions.
+# Options: full_fix (default), ankle_fix, no_fix.
+motion_fix_height: "full_fix"
+ground_correction: True
 num_envs: 3072
 env_spacing: 5
 episode_length: 300

@@ -30,6 +30,55 @@ class FixHeightMode(Enum):
     full_fix = 1
     ankle_fix = 2
 
+
+def get_fix_height_mode_from_cfg(cfg, default=FixHeightMode.full_fix):
+    """Parse motion height/ground correction mode from PHC config.
+
+    Backward compatible default is ``FixHeightMode.full_fix``.  Users can
+    disable PHC's motion height correction with either:
+
+      env.motion_fix_height=no_fix
+      env.ground_correction=False
+
+    Supported ``env.motion_fix_height`` values: no_fix/none/off/false/0,
+    full_fix/full/on/true/1, ankle_fix/ankle.
+    """
+
+    def _cfg_get(obj, key, fallback=None):
+        if obj is None:
+            return fallback
+        if isinstance(obj, dict):
+            return obj.get(key, fallback)
+        return getattr(obj, key, fallback)
+
+    env_cfg = _cfg_get(cfg, "env", {})
+
+    # Boolean alias for the common use case: turn height correction on/off.
+    ground_correction = _cfg_get(env_cfg, "ground_correction", None)
+    if ground_correction is False:
+        return FixHeightMode.no_fix
+
+    mode = _cfg_get(env_cfg, "motion_fix_height", None)
+    if mode is None:
+        mode = _cfg_get(env_cfg, "fix_height", None)
+    if mode is None:
+        return default
+    if isinstance(mode, FixHeightMode):
+        return mode
+    if isinstance(mode, bool):
+        return default if mode else FixHeightMode.no_fix
+
+    mode = str(mode).lower()
+    mode = mode.replace("-", "_")
+    if mode in ["no_fix", "none", "off", "false", "0"]:
+        return FixHeightMode.no_fix
+    if mode in ["full_fix", "full", "on", "true", "1"]:
+        return FixHeightMode.full_fix
+    if mode in ["ankle_fix", "ankle"]:
+        return FixHeightMode.ankle_fix
+
+    raise ValueError(f"Unsupported env.motion_fix_height value: {mode}")
+
 if not USE_CACHE:
     old_numpy = torch.Tensor.numpy
 
