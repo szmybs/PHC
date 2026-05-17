@@ -32,6 +32,8 @@ class IMAMPPlayerContinuous(amp_players.AMPPlayerContinuous):
         self.mpjpe, self.mpjpe_all = [], []
         self.gt_pos, self.gt_pos_all = [], []
         self.pred_pos, self.pred_pos_all = [], []
+        self.gt_rot, self.gt_rot_all = [], []
+        self.pred_rot, self.pred_rot_all = [], []
         self.curr_stpes = 0
 
         if COLLECT_Z:
@@ -101,6 +103,8 @@ class IMAMPPlayerContinuous(amp_players.AMPPlayerContinuous):
             self.mpjpe.append(info["mpjpe"])
             self.gt_pos.append(info["body_pos_gt"])
             self.pred_pos.append(info["body_pos"])
+            self.gt_rot.append(info["body_rot_gt"])
+            self.pred_rot.append(info["body_rot"])
             if COLLECT_Z: self.zs.append(info["z"])
             self.curr_stpes += 1
 
@@ -129,6 +133,10 @@ class IMAMPPlayerContinuous(amp_players.AMPPlayerContinuous):
                 all_body_pos_pred = [all_body_pos_pred[: (i), idx] for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())]
                 all_body_pos_gt = np.stack(self.gt_pos)
                 all_body_pos_gt = [all_body_pos_gt[: (i), idx] for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())]
+                all_body_rot_pred = np.stack(self.pred_rot)
+                all_body_rot_pred = [all_body_rot_pred[: (i), idx] for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())]
+                all_body_rot_gt = np.stack(self.gt_rot)
+                all_body_rot_gt = [all_body_rot_gt[: (i), idx] for idx, i in enumerate(humanoid_env._motion_lib.get_motion_num_steps())]
 
 
                 if COLLECT_Z:
@@ -171,6 +179,8 @@ class IMAMPPlayerContinuous(amp_players.AMPPlayerContinuous):
                 self.mpjpe_all.append(all_mpjpe)
                 self.pred_pos_all += all_body_pos_pred
                 self.gt_pos_all += all_body_pos_gt
+                self.pred_rot_all += all_body_rot_pred
+                self.gt_rot_all += all_body_rot_gt
                 
 
                 if (humanoid_env.start_idx + humanoid_env.num_envs >= humanoid_env._motion_lib._num_unique_motions):
@@ -227,6 +237,10 @@ class IMAMPPlayerContinuous(amp_players.AMPPlayerContinuous):
                                 "env_action": self.actions_all,
                                 "pred_pos": self.pred_pos_all,
                                 "gt_pred_pos": self.gt_pos_all,
+                                "pred_root_trans": [pos[:, 0, :] for pos in self.pred_pos_all],
+                                "gt_root_trans": [pos[:, 0, :] for pos in self.gt_pos_all],
+                                "pred_rot": self.pred_rot_all,
+                                "gt_rot": self.gt_rot_all,
                                 "key_names": np.array(self.keys_all),
                                 "motion_lengths": np.array(self.motion_length_all),
                                 "reset": np.concatenate(self.reset_buf_all), 
@@ -250,7 +264,8 @@ class IMAMPPlayerContinuous(amp_players.AMPPlayerContinuous):
 
                 self.pbar.update(1)
                 self.pbar.refresh()
-                self.mpjpe, self.gt_pos, self.pred_pos,  = [], [], []
+                self.mpjpe, self.gt_pos, self.pred_pos = [], [], []
+                self.gt_rot, self.pred_rot = [], []
                 if humanoid_env.collect_dataset: 
                     self.obs_buf, self.env_actions, self.clean_actions, self.reset_buf, self.keys = [], [], [], [], []
                 if COLLECT_Z: self.zs = []

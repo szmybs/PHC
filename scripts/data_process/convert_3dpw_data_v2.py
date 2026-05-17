@@ -157,6 +157,8 @@ def process_3dpw(args):
                     is_local=True
                 )
                 root_trans_offset = root_trans_offset_fixed
+            else:
+                min_heights = torch.zeros(size=(1,))
 
             # 封装结果
             pw3d_full_motion_dict[key_name] = {

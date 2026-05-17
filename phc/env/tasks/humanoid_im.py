@@ -679,6 +679,8 @@ class HumanoidIm(humanoid_amp_task.HumanoidAMPTask):
             self.extras['mpjpe'] = (body_pos - motion_res['rg_pos']).norm(dim=-1).mean(dim=-1)
             self.extras['body_pos'] = body_pos.cpu().numpy()
             self.extras['body_pos_gt'] = motion_res['rg_pos'].cpu().numpy()
+            self.extras['body_rot'] = self._rigid_body_rot.cpu().numpy()
+            self.extras['body_rot_gt'] = motion_res['rb_rot'].cpu().numpy()
 
             #### Dumping dataset
             if self.collect_dataset:
