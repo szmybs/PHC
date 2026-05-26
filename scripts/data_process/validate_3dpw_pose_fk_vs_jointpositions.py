@@ -201,6 +201,7 @@ def fk_like_convert_v2(
         "pose_quat": sk_state.local_rotation.detach().cpu().numpy(),
         "root_trans_offset": root_trans_offset.detach().cpu().numpy(),
         "floor_offset": floor_offset,
+        "_skeleton_tree": skeleton_tree,
     }
 
 
@@ -306,6 +307,142 @@ def compare_positions(fk_pos: np.ndarray, target_pos: np.ndarray, atol: float, r
     }
 
 
+def root_center(pos: np.ndarray) -> np.ndarray:
+    """Subtract per-frame root/joint-0 position."""
+    pos = np.asarray(pos, dtype=np.float64)
+    if pos.ndim == 2:
+        pos = pos.reshape(pos.shape[0], 24, 3)
+    return pos - pos[:, 0:1, :]
+
+
+def translation_align_to_target(source_pos: np.ndarray, target_pos: np.ndarray) -> Tuple[np.ndarray, Dict[str, Any]]:
+    """
+    Add per-frame translation so source root equals target root.
+
+    If this comparison becomes good while raw comparison is bad, the dominant
+    problem is a global/env offset rather than pose/FK rotation.
+    """
+    source_pos = np.asarray(source_pos, dtype=np.float64)
+    target_pos = np.asarray(target_pos, dtype=np.float64)
+    if source_pos.ndim == 2:
+        source_pos = source_pos.reshape(source_pos.shape[0], 24, 3)
+    if target_pos.ndim == 2:
+        target_pos = target_pos.reshape(target_pos.shape[0], 24, 3)
+    n = min(source_pos.shape[0], target_pos.shape[0])
+    offset = target_pos[:n, 0, :] - source_pos[:n, 0, :]
+    aligned = source_pos[:n] + offset[:, None, :]
+    offset_delta = offset - offset[:1]
+    stats = {
+        "alignment": "per_frame_root_translation",
+        "offset_mean": offset.mean(axis=0).tolist() if offset.size else [0.0, 0.0, 0.0],
+        "offset_std": offset.std(axis=0).tolist() if offset.size else [0.0, 0.0, 0.0],
+        "offset_min": offset.min(axis=0).tolist() if offset.size else [0.0, 0.0, 0.0],
+        "offset_max": offset.max(axis=0).tolist() if offset.size else [0.0, 0.0, 0.0],
+        "offset_delta_max_l2": float(np.max(np.linalg.norm(offset_delta, axis=-1))) if offset.size else 0.0,
+        "offset_delta_mean_l2": float(np.mean(np.linalg.norm(offset_delta, axis=-1))) if offset.size else 0.0,
+    }
+    return aligned, stats
+
+
+def compare_all_alignments(source_pos: np.ndarray, target_pos: np.ndarray, atol: float, rtol: float) -> Dict[str, Any]:
+    """Compare raw, root-centered, and per-frame-root-translation-aligned positions."""
+    raw = compare_positions(source_pos, target_pos, atol, rtol)
+    root_aligned = compare_positions(root_center(source_pos), root_center(target_pos), atol, rtol)
+    source_translation_aligned, offset_stats = translation_align_to_target(source_pos, target_pos)
+    n = source_translation_aligned.shape[0]
+    translation_aligned = compare_positions(source_translation_aligned, np.asarray(target_pos)[:n], atol, rtol)
+    translation_aligned.update(offset_stats)
+
+    raw_mean = raw.get("mean_joint_l2_error", 0.0)
+    aligned_mean = translation_aligned.get("mean_joint_l2_error", 0.0)
+    improvement = raw_mean / max(aligned_mean, 1e-12)
+
+    return {
+        "raw_global": raw,
+        "root_aligned": root_aligned,
+        "translation_aligned": translation_aligned,
+        "diagnosis": {
+            "translation_alignment_improvement_ratio": float(improvement),
+            "likely_global_translation_offset": bool(improvement > 5.0 and aligned_mean < raw_mean),
+        },
+    }
+
+
+def slice_with_temporal_shift(source_pos: np.ndarray, target_pos: np.ndarray, shift: int) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Align source/target with an integer frame shift.
+
+    shift < 0 means source is advanced: source[-shift:] vs target[:].
+    This checks the PHC post_physics_step convention where collected gt at
+    index t may correspond to reference motion frame t+1.
+    """
+    source_pos = np.asarray(source_pos)
+    target_pos = np.asarray(target_pos)
+    if shift < 0:
+        src = source_pos[-shift:]
+        tgt = target_pos[: len(src)]
+    elif shift > 0:
+        src = source_pos[:-shift]
+        tgt = target_pos[shift:]
+    else:
+        n = min(source_pos.shape[0], target_pos.shape[0])
+        src = source_pos[:n]
+        tgt = target_pos[:n]
+    n = min(src.shape[0], tgt.shape[0])
+    return src[:n], tgt[:n]
+
+
+def compare_best_temporal_shift(
+    source_pos: np.ndarray,
+    target_pos: np.ndarray,
+    shifts: Iterable[int],
+    atol: float,
+    rtol: float,
+) -> Dict[str, Any]:
+    """Find best integer frame shift by root-aligned mean joint L2."""
+    best = None
+    per_shift = {}
+    for shift in shifts:
+        src, tgt = slice_with_temporal_shift(source_pos, target_pos, int(shift))
+        rep = compare_positions(root_center(src), root_center(tgt), atol, rtol)
+        rep["temporal_shift"] = int(shift)
+        per_shift[str(int(shift))] = {
+            "mean_joint_l2_error": rep["mean_joint_l2_error"],
+            "max_joint_l2_error": rep["max_joint_l2_error"],
+            "rmse_coord": rep["rmse_coord"],
+            "num_frames_compared": rep["num_frames_compared"],
+        }
+        if best is None or rep["mean_joint_l2_error"] < best["mean_joint_l2_error"]:
+            best = rep
+    best["per_shift_root_aligned"] = per_shift
+    return best
+
+
+def load_converted_motion_pkl(path: str) -> Dict[str, Any]:
+    if not path:
+        return {}
+    if not osp.exists(path):
+        print(f"[warn] converted motion pkl not found, skip self-check: {path}")
+        return {}
+    data = joblib.load(path)
+    if not isinstance(data, dict):
+        raise TypeError(f"{path} should contain a dict, got {type(data)}")
+    return data
+
+
+def fk_from_saved_motion_entry(entry: Dict[str, Any], skeleton_tree: SkeletonTree) -> np.ndarray:
+    """Re-FK a saved convert_3dpw_data_v2.py entry using pose_quat_global/root_trans_offset."""
+    pose_quat_global = torch.from_numpy(to_numpy(entry["pose_quat_global"]).astype(np.float32))
+    root_trans_offset = torch.from_numpy(to_numpy(entry["root_trans_offset"]).astype(np.float32))
+    sk_state = SkeletonState.from_rotation_and_root_translation(
+        skeleton_tree,
+        pose_quat_global,
+        root_trans_offset,
+        is_local=False,
+    )
+    return sk_state.global_translation.detach().cpu().numpy()
+
+
 def summarize(reports: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     if not reports:
         return {"num_motions": 0, "num_allclose": 0, "all_motions_allclose": False}
@@ -323,12 +460,17 @@ def summarize(reports: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
 
 def validate(args: argparse.Namespace) -> Dict[str, Any]:
     phc_positions, phc_source_fields = load_phc_positions(args.phc_act_pkl)
+    converted_motion = load_converted_motion_pkl(args.converted_motion_pkl)
     pkl_paths = sorted(glob.glob(osp.join(args.path, "sequence", args.process_split, "*.pkl")))
     if not pkl_paths:
         raise FileNotFoundError(f"No 3DPW pkl files found under {osp.join(args.path, 'sequence', args.process_split)}")
 
     robot = make_robot(args.upright_start)
-    reports = {"pos_state": {}, "gt_pos_state": {}}
+    reports = {
+        "pos_state": {"raw_global": {}, "root_aligned": {}, "translation_aligned": {}, "best_temporal_shift": {}},
+        "gt_pos_state": {"raw_global": {}, "root_aligned": {}, "translation_aligned": {}, "best_temporal_shift": {}},
+    }
+    converted_self_check = {"raw_global": {}, "root_aligned": {}, "translation_aligned": {}}
     missing = {"pos_state": [], "gt_pos_state": []}
 
     for pkl_path in tqdm(pkl_paths, desc="3DPW convert-v2 FK -> compare PHC action pkl"):
@@ -365,13 +507,19 @@ def validate(args: argparse.Namespace) -> Dict[str, Any]:
             )
             fk_pos = fk["fk_pos_mujoco"]
 
+            if key in converted_motion:
+                saved_fk_pos = fk_from_saved_motion_entry(converted_motion[key], fk["_skeleton_tree"])
+                saved_comps = compare_all_alignments(fk_pos, saved_fk_pos, args.atol, args.rtol)
+                for mode in ("raw_global", "root_aligned", "translation_aligned"):
+                    converted_self_check[mode][key] = saved_comps[mode]
+
             for field in ("pos_state", "gt_pos_state"):
                 if key not in phc_positions.get(field, {}):
                     if phc_positions.get(field):
                         missing[field].append(key)
                     continue
-                report = compare_positions(fk_pos, phc_positions[field][key], args.atol, args.rtol)
-                report.update(
+                comparisons = compare_all_alignments(fk_pos, phc_positions[field][key], args.atol, args.rtol)
+                meta = (
                     {
                         "sequence": seq_name,
                         "person_id": int(person_id),
@@ -384,7 +532,24 @@ def validate(args: argparse.Namespace) -> Dict[str, Any]:
                         "floor_offset_mean": float(np.mean(fk["floor_offset"])) if len(fk["floor_offset"]) else 0.0,
                     }
                 )
-                reports[field][key] = report
+                for mode in ("raw_global", "root_aligned", "translation_aligned"):
+                    comparisons[mode].update(meta)
+                    comparisons[mode]["translation_alignment_improvement_ratio"] = comparisons["diagnosis"][
+                        "translation_alignment_improvement_ratio"
+                    ]
+                    comparisons[mode]["likely_global_translation_offset"] = comparisons["diagnosis"][
+                        "likely_global_translation_offset"
+                    ]
+                    reports[field][mode][key] = comparisons[mode]
+                best_shift = compare_best_temporal_shift(
+                    fk_pos,
+                    phc_positions[field][key],
+                    args.temporal_shifts,
+                    args.atol,
+                    args.rtol,
+                )
+                best_shift.update(meta)
+                reports[field]["best_temporal_shift"][key] = best_shift
 
     result = {
         "description": (
@@ -394,6 +559,7 @@ def validate(args: argparse.Namespace) -> Dict[str, Any]:
         "path": args.path,
         "process_split": args.process_split,
         "phc_act_pkl": args.phc_act_pkl,
+        "converted_motion_pkl": args.converted_motion_pkl,
         "phc_source_fields": phc_source_fields,
         "joint_order": "MuJoCo/PHC (SMPL_MUJOCO_NAMES)",
         "coordinate_transform": "root_trans_amass=Rx(+90deg)*trans; root_rot_amass=Rx(+90deg)*root_rot",
@@ -402,8 +568,15 @@ def validate(args: argparse.Namespace) -> Dict[str, Any]:
         "gender_flag": bool(args.gender_flag),
         "atol": args.atol,
         "rtol": args.rtol,
-        "summary": {field: summarize(field_reports) for field, field_reports in reports.items()},
+        "summary": {
+            field: {mode: summarize(mode_reports) for mode, mode_reports in field_reports.items()}
+            for field, field_reports in reports.items()
+        },
         "motions": reports,
+        "converted_motion_self_check": {
+            "summary": {mode: summarize(mode_reports) for mode, mode_reports in converted_self_check.items()},
+            "motions": converted_self_check,
+        },
         "missing_phc_keys": {k: sorted(set(v)) for k, v in missing.items() if v},
     }
 
@@ -415,9 +588,20 @@ def validate(args: argparse.Namespace) -> Dict[str, Any]:
             json.dump(result, f, indent=2, ensure_ascii=False)
         print(f"Saved report to {args.output}")
 
-    for field, summary in result["summary"].items():
+    print("\n=== PHC action comparisons ===")
+    for field, mode_summaries in result["summary"].items():
+        for mode, summary in mode_summaries.items():
+            print(
+                f"{field}/{mode}: allclose {summary['num_allclose']}/{summary['num_motions']}, "
+                f"max_abs={summary.get('max_abs_coord_error', 0.0):.6g}, "
+                f"max_joint_l2={summary.get('max_joint_l2_error', 0.0):.6g}, "
+                f"mean_joint_l2={summary.get('mean_joint_l2_error', 0.0):.6g}, "
+                f"rmse={summary.get('rmse_coord', 0.0):.6g}"
+            )
+    print("\n=== Converted motion pkl self-check ===")
+    for mode, summary in result["converted_motion_self_check"]["summary"].items():
         print(
-            f"{field}: allclose {summary['num_allclose']}/{summary['num_motions']}, "
+            f"converted/{mode}: allclose {summary['num_allclose']}/{summary['num_motions']}, "
             f"max_abs={summary.get('max_abs_coord_error', 0.0):.6g}, "
             f"max_joint_l2={summary.get('max_joint_l2_error', 0.0):.6g}, "
             f"mean_joint_l2={summary.get('mean_joint_l2_error', 0.0):.6g}, "
@@ -435,6 +619,16 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="output/HumanoidIm/phc_comp_3/phc_act/phc_act_3dpw_test_upright_whole_sequence_gender_ground.pkl",
     )
+    parser.add_argument(
+        "--converted_motion_pkl",
+        type=str,
+        default="data/3dpw/3dpw_test_upright_whole_sequence_gender_ground.pkl",
+        help=(
+            "Optional output of convert_3dpw_data_v2.py. If present, the script "
+            "also re-FKs pose_quat_global/root_trans_offset from this file and "
+            "compares it with the FK regenerated from Vanilla 3DPW."
+        ),
+    )
     parser.add_argument("--output", type=str, default="data/3dpw/fk_vs_phc_act_report.json")
     parser.add_argument("--tmp_xml_dir", type=str, default="phc/data/assets/mjcf")
 
@@ -450,6 +644,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min_frames", type=int, default=10)
     parser.add_argument("--atol", type=float, default=1e-5)
     parser.add_argument("--rtol", type=float, default=1e-5)
+    parser.add_argument(
+        "--temporal_shifts",
+        type=lambda s: [int(x) for x in s.split(",") if x.strip()],
+        default=[-2, -1, 0, 1, 2],
+        help=(
+            "Comma-separated integer shifts for temporal diagnosis. "
+            "Negative means compare FK[t-shift] to PHC[t], e.g. -1 tests PHC gt frame t == FK frame t+1."
+        ),
+    )
     return parser.parse_args()
 
 
